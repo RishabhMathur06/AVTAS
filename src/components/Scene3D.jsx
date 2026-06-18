@@ -407,7 +407,7 @@ function CarsController({ stateRef, timeOfDay, cameraMode, zoom }) {
       let followerIdx = 0;
       cars.forEach((car) => {
         if (car.alive && car !== leader) {
-          dummy.position.set(car.x, 2.7, car.y);
+          dummy.position.set(car.x, 2.2, car.y);
           dummy.rotation.y = -car.angle;
           dummy.updateMatrix();
           followerRef.current.setMatrixAt(followerIdx, dummy.matrix);
@@ -560,8 +560,8 @@ function CarsController({ stateRef, timeOfDay, cameraMode, zoom }) {
       </group>
 
       <instancedMesh ref={followerRef} args={[null, null, 100]} castShadow>
-        <boxGeometry args={[24, 4.5, 12]} />
-        <meshStandardMaterial color="#0ea5e9" transparent opacity={0.4} roughness={0.3} metalness={0.5} />
+        <boxGeometry args={[24, 3, 11]} />
+        <meshStandardMaterial color="#0ea5e9" transparent opacity={0.15} depthWrite={false} roughness={0.3} metalness={0.5} />
       </instancedMesh>
 
       <group ref={lidarRef}>
