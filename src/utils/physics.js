@@ -155,24 +155,7 @@ export const updateCarPhysics = (car, isAI, controls, track, cones) => {
     }
   });
 
-  // Robust road corridor check: if a car crosses the white curb lines (distance to nearest center-line segment > track.roadWidth)
-  if (car.alive && track.roadWidth) {
-    let minCenterDist = Infinity;
-    for (let i = 0; i < track.checkpoints.length - 1; i++) {
-      const dist = getDistanceToSegment(
-        { x: car.x, y: car.y },
-        track.checkpoints[i],
-        track.checkpoints[i + 1]
-      );
-      if (dist < minCenterDist) {
-        minCenterDist = dist;
-      }
-    }
-    // Curb lines are drawn at track.roadWidth. If the car center goes past track.roadWidth - 3, it crashes.
-    if (minCenterDist > (track.roadWidth - 3)) {
-      car.alive = false;
-    }
-  }
+
 
   cones.forEach((cone) => {
     if (Math.hypot(car.x - cone.x, car.y - cone.y) < CAR_RADIUS + cone.radius) {
