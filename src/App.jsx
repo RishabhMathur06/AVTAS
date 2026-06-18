@@ -67,17 +67,39 @@ export default function App() {
   const [leaderTelemetry, setLeaderTelemetry] = useState(DEFAULT_TELEMETRY);
 
   // ── Startup / sidebar flow ─────────────────────────────────────────────────
-  const [showLanding,      setShowLanding]      = useState(true);
-  const [showStartupModal, setShowStartupModal] = useState(false);
+  const [showLanding,      setShowLanding]      = useState(() => !localStorage.getItem('avtas_activeProject'));
+  const [showStartupModal, setShowStartupModal] = useState(() => !!localStorage.getItem('avtas_activeProject'));
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSidebar,      setShowSidebar]      = useState(false);
   const [showProjectSidebar, setShowProjectSidebar] = useState(false);
   
   // ── Mode / Project state ───────────────────────────────────────────────────
-  const [currentProject,   setCurrentProject]   = useState(null);
-  const [currentSessionId, setCurrentSessionId] = useState(null);
-  const [currentSessionName, setCurrentSessionName] = useState('');
-  const [simMode,          setSimMode]          = useState('training');
+  const [currentProject,   setCurrentProject]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem('avtas_activeProject')); } catch (e) { return null; }
+  });
+  const [currentSessionId, setCurrentSessionId] = useState(() => localStorage.getItem('avtas_activeSessionId') || null);
+  const [currentSessionName, setCurrentSessionName] = useState(() => localStorage.getItem('avtas_activeSessionName') || '');
+  const [simMode,          setSimMode]          = useState(() => localStorage.getItem('avtas_simMode') || 'training');
+
+  // Sync project state to localStorage to persist across reloads
+  useEffect(() => {
+    if (currentProject) {
+      localStorage.setItem('avtas_activeProject', JSON.stringify(currentProject));
+      localStorage.setItem('avtas_simMode', simMode);
+      if (currentSessionId) {
+        localStorage.setItem('avtas_activeSessionId', currentSessionId);
+        localStorage.setItem('avtas_activeSessionName', currentSessionName);
+      } else {
+        localStorage.removeItem('avtas_activeSessionId');
+        localStorage.removeItem('avtas_activeSessionName');
+      }
+    } else {
+      localStorage.removeItem('avtas_activeProject');
+      localStorage.removeItem('avtas_simMode');
+      localStorage.removeItem('avtas_activeSessionId');
+      localStorage.removeItem('avtas_activeSessionName');
+    }
+  }, [currentProject, simMode, currentSessionId, currentSessionName]);
 
   // ── Saved brain state (file-based; no localStorage) ────────────────────────
   const [hasSavedBrain,    setHasSavedBrain]    = useState(false);
@@ -517,6 +539,7 @@ export default function App() {
           {!showLanding && (
             <button
               onClick={() => {
+                setCurrentProject(null);
                 setShowLanding(true);
                 setIsPlaying(false);
                 setShowStartupModal(false);
@@ -688,6 +711,7 @@ export default function App() {
         currentProject={currentProject}
         simMode={simMode}
         onOpenProjectList={() => {
+          setCurrentProject(null);
           setShowLanding(true);
           setIsPlaying(false);
           setShowProjectSidebar(false);
