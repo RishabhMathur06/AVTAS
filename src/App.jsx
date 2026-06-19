@@ -22,7 +22,7 @@ import SimulationPage   from './pages/SimulationPage.jsx';
 import AdversarialSuitePage from './pages/AdversarialSuitePage.jsx';
 
 import { buildSprawlingCityMap, buildObstacles } from './utils/cityMap.js';
-import { spawnCar, updateCarPhysics }            from './utils/physics.js';
+import { spawnCar, updateCarPhysics, updateEnvironment } from './utils/physics.js';
 import { cloneNetwork, crossoverNetworks,
          mutateNetwork }                          from './utils/neural.js';
 
@@ -237,6 +237,8 @@ export default function App() {
 
       if (isPlaying) {
         for (let s = 0; s < simSpeed; s++) {
+          updateEnvironment(state);
+
           let allDead = true;
 
           state.cars.forEach((car) => {
@@ -480,6 +482,63 @@ export default function App() {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
+  const handleLoadSession = (project, mode, sessionData) => {
+    setCurrentProject(project);
+    setSimMode(mode);
+    setShowLanding(false);
+    setShowProjectSidebar(false);
+    
+    if (sessionData) {
+      setCurrentSessionId(sessionData.id);
+      setCurrentSessionName(sessionData.name || `Session ${sessionData.id.slice(-4)}`);
+
+      // Load configuration
+      setPopulationSize(sessionData.config?.populationSize || 20);
+      setMutationRate(sessionData.config?.mutationRate || 0.08);
+      setSelectionRatio(sessionData.config?.selectionRatio || 0.25);
+      setTimeOfDay(sessionData.config?.timeOfDay || 'day');
+      setHasRain(sessionData.config?.hasRain || false);
+      setHasObstacles(sessionData.config?.hasObstacles || true);
+      setSimSpeed(sessionData.config?.simSpeed || 1);
+      setZoom(sessionData.config?.zoom || 1);
+      if (sessionData.config?.cameraMode) setCameraMode(sessionData.config.cameraMode);
+
+      // For adversarial mode, show config modal first. For training, go straight to play.
+      if (mode === 'adversarial') {
+        setShowStartupModal(true);
+        setIsPlaying(false);
+      } else {
+        setShowStartupModal(false);
+        setIsPlaying(true);
+      }
+
+      // Setup simulation state after a tiny delay
+      setTimeout(() => {
+        if (sessionData.network && stateRef.current.track) {
+          const f = sessionData.config?.hasRain ? 0.08 : 0.04;
+          savedBrainRef.current = cloneNetwork(sessionData.network);
+          stateRef.current.bestEverNetwork = cloneNetwork(sessionData.network);
+          
+          const nextBrains = Array(sessionData.config?.populationSize || 20).fill(null).map(() => cloneNetwork(sessionData.network));
+          stateRef.current.cars = nextBrains.map(b => spawnCar(stateRef.current.track, f, b));
+          setHasSavedBrain(true);
+        }
+        
+        stateRef.current.bestEverFitness = sessionData.fitness || 0;
+        setBestFitness(sessionData.fitness || 0);
+        stateRef.current.generationCount = sessionData.generation || 1;
+        setGeneration(sessionData.generation || 1);
+      }, 50);
+
+    } else {
+      setCurrentSessionId(null);
+      setCurrentSessionName('');
+      // Normal startup
+      setShowStartupModal(true);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Current active config snapshot (for ConfigModal read-only view)
   // ─────────────────────────────────────────────────────────────────────────
   const activeConfig = {
@@ -498,7 +557,7 @@ export default function App() {
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#070709] text-zinc-100 flex font-sans selection:bg-amber-500/30">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans selection:bg-cyan-500/30">
 
       {/* ── Sidebar (hidden by default) ── */}
       {showSidebar && (
@@ -519,54 +578,57 @@ export default function App() {
       {/* ── Main panel ───────────────────────────────────────────────────── */}
       <main className={`flex-1 p-8 overflow-y-auto ${showSidebar ? 'pl-80' : 'pl-8'}`}>
 
-        {/* Page header */}
-        <div className="flex items-center justify-between mb-8 pb-4 border-b border-zinc-900">
-          <div className="flex items-center gap-4">
-            {!showStartupModal && !showLanding && (
-              <button 
-                onClick={() => setShowProjectSidebar(true)}
-                className="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-zinc-300 transition-colors"
-                title="Open Project Menu"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-            )}
-            <div>
-              <h1 className="text-3xl font-extrabold text-white">AVTAS Laboratory</h1>
-            </div>
-          </div>
-
-          {!showLanding && (
-            <button
-              onClick={() => {
-                setCurrentProject(null);
-                setShowLanding(true);
-                setIsPlaying(false);
-                setShowStartupModal(false);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white transition-all shadow-md font-mono uppercase tracking-wider"
-              title="Back to Workspace Dashboard"
-            >
-              <LayoutGrid className="w-4 h-4 text-amber-500" />
-              <span>Back to Workspaces</span>
-            </button>
-          )}
-        </div>
-
-        {/* Sub-header (where tabs used to be) */}
+        {/* Topmost Bar */}
         {!showLanding && (
-          <div className="flex items-center justify-between border-b border-zinc-900 mb-6 pb-3">
-            <h2 className="text-sm font-semibold text-zinc-300">
-              {simMode === 'training' ? 'Mission Control Dashboard' : 'Adversarial Test Dashboard'}
-            </h2>
+          <div className="relative flex items-center justify-between border-b border-slate-200 mb-6 pb-3">
+            
+            <div className="flex items-center gap-4">
+              {!showStartupModal && (
+                <button 
+                  onClick={() => setShowProjectSidebar(true)}
+                  className="p-2.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-500 transition-colors shadow-sm flex-shrink-0"
+                  title="Open Project Menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+              )}
+
+              {simMode === 'training' ? (
+                <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-3 font-mono text-[12px] text-slate-600 flex items-center gap-6">
+                  <div>
+                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Episode</div>
+                    <div className="text-sm font-extrabold text-slate-800 mt-0.5">GEN #{generation}</div>
+                  </div>
+                  <div className="border-l border-slate-200 pl-6">
+                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Survivors</div>
+                    <div className="text-sm font-extrabold text-cyan-600 mt-0.5">{aliveCount} / {populationSize}</div>
+                  </div>
+                  <div className="border-l border-slate-200 pl-6">
+                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Best Score</div>
+                    <div className="text-sm font-extrabold text-pink-500 mt-0.5">{bestFitness.toLocaleString()}</div>
+                  </div>
+                </div>
+              ) : (
+                <h2 className="text-sm font-semibold text-slate-600 bg-white border border-slate-200 shadow-sm rounded-xl px-4 py-3">
+                  Adversarial Test Dashboard
+                </h2>
+              )}
+            </div>
+
+            {/* Middle Title */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-3">
+              <h1 className="text-3xl font-black tracking-[0.25em] bg-gradient-to-r from-cyan-600 via-pink-500 to-cyan-500 text-transparent bg-clip-text drop-shadow-md select-none">
+                AVTAS
+              </h1>
+            </div>
             
             <div className="flex items-center gap-3">
               {currentSessionId && (
-                <div className="flex items-center gap-2 px-3 py-1 bg-zinc-900/50 rounded-lg border border-zinc-800/50 mr-2">
-                  <span className="text-zinc-400 text-xs font-mono">{currentSessionName}</span>
+                <div className="flex items-center gap-2 px-3 py-1 bg-white/50 rounded-lg border border-slate-200 mr-2 shadow-sm">
+                  <span className="text-slate-500 text-xs font-mono">{currentSessionName}</span>
                   <button 
                     onClick={handleRenameCurrentSession}
-                    className="text-zinc-500 hover:text-amber-500 transition-colors p-1"
+                    className="text-slate-400 hover:text-pink-500 transition-colors p-1"
                     title="Rename Session"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
@@ -577,7 +639,7 @@ export default function App() {
               {!showStartupModal && (
                 <button
                   onClick={handleSaveSession}
-                  className="flex items-center gap-2 px-4 py-1.5 bg-zinc-900 hover:bg-amber-500 hover:text-black border border-zinc-800 rounded-lg text-xs font-semibold text-zinc-300 transition-colors shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-cyan-50 hover:text-cyan-600 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 transition-colors shadow-sm"
                 >
                   <Database className="w-3.5 h-3.5" /> Save Session
                 </button>
@@ -586,11 +648,13 @@ export default function App() {
               {!showStartupModal && (
                 <button
                   onClick={() => setShowStartupModal(true)}
-                  className="flex items-center gap-2 px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-xs font-semibold text-amber-500 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-pink-500 transition-colors shadow-sm"
                 >
-                  ⚙ Environment Configurations
+                  ⚙ Edit Configurations
                 </button>
               )}
+
+
             </div>
           </div>
         )}
@@ -646,61 +710,7 @@ export default function App() {
       {/* ── Landing Page ─────────────────────────────────────────────────── */}
       {showLanding && (
         <LandingPage
-          onComplete={({ project, mode, sessionData }) => {
-            setCurrentProject(project);
-            setSimMode(mode);
-            setShowLanding(false);
-            
-            if (sessionData) {
-              setCurrentSessionId(sessionData.id);
-              setCurrentSessionName(sessionData.name || `Session ${sessionData.id.slice(-4)}`);
-
-              // Load configuration
-              setPopulationSize(sessionData.config?.populationSize || 20);
-              setMutationRate(sessionData.config?.mutationRate || 0.08);
-              setSelectionRatio(sessionData.config?.selectionRatio || 0.25);
-              setTimeOfDay(sessionData.config?.timeOfDay || 'day');
-              setHasRain(sessionData.config?.hasRain || false);
-              setHasObstacles(sessionData.config?.hasObstacles || true);
-              setSimSpeed(sessionData.config?.simSpeed || 1);
-              setZoom(sessionData.config?.zoom || 1);
-              if (sessionData.config?.cameraMode) setCameraMode(sessionData.config.cameraMode);
-
-              // For adversarial mode, show config modal first. For training, go straight to play.
-              if (mode === 'adversarial') {
-                setShowStartupModal(true);
-                setIsPlaying(false);
-              } else {
-                setShowStartupModal(false);
-                setIsPlaying(true);
-              }
-
-              // Setup simulation state after a tiny delay to allow handleRegenerateCity to run from populationSize effect
-              setTimeout(() => {
-                if (sessionData.network && stateRef.current.track) {
-                  const f = sessionData.config?.hasRain ? 0.08 : 0.04;
-                  savedBrainRef.current = cloneNetwork(sessionData.network);
-                  stateRef.current.bestEverNetwork = cloneNetwork(sessionData.network);
-                  
-                  // In adversarial, all cars use the exact same brain. In training, we use clones of the brain.
-                  const nextBrains = Array(sessionData.config?.populationSize || 20).fill(null).map(() => cloneNetwork(sessionData.network));
-                  stateRef.current.cars = nextBrains.map(b => spawnCar(stateRef.current.track, f, b));
-                  setHasSavedBrain(true);
-                }
-                
-                stateRef.current.bestEverFitness = sessionData.fitness || 0;
-                setBestFitness(sessionData.fitness || 0);
-                stateRef.current.generationCount = sessionData.generation || 1;
-                setGeneration(sessionData.generation || 1);
-              }, 50);
-
-            } else {
-              setCurrentSessionId(null);
-              setCurrentSessionName('');
-              // Normal startup
-              setShowStartupModal(true);
-            }
-          }}
+          onComplete={({ project, mode, sessionData }) => handleLoadSession(project, mode, sessionData)}
         />
       )}
 
@@ -709,6 +719,8 @@ export default function App() {
         isOpen={showProjectSidebar}
         onClose={() => setShowProjectSidebar(false)}
         currentProject={currentProject}
+        currentSessionId={currentSessionId}
+        onLoadSession={handleLoadSession}
         simMode={simMode}
         onOpenProjectList={() => {
           setCurrentProject(null);

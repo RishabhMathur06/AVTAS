@@ -20,20 +20,52 @@ export const buildSprawlingCityMap = () => {
   const gridLinesY = [];
   for (let y = 180; y <= MAP_SIZE - 180; y += BLOCK_SIZE) gridLinesY.push(y);
 
+  // Organic Road Segments (Graph Edges)
+  const segmentsX = []; // Horizontal roads
+  const segmentsY = []; // Vertical roads
+
+  for (let yIdx = 0; yIdx < gridLinesY.length; yIdx++) {
+    for (let xIdx = 0; xIdx < gridLinesX.length - 1; xIdx++) {
+      const isPerimeter = (yIdx === 0 || yIdx === gridLinesY.length - 1);
+      // Keep perimeter, randomly drop ~30% of internal roads
+      if (isPerimeter || Math.random() > 0.3) {
+        segmentsX.push({ xIdx, yIdx });
+      }
+    }
+  }
+
+  for (let xIdx = 0; xIdx < gridLinesX.length; xIdx++) {
+    for (let yIdx = 0; yIdx < gridLinesY.length - 1; yIdx++) {
+      const isPerimeter = (xIdx === 0 || xIdx === gridLinesX.length - 1);
+      if (isPerimeter || Math.random() > 0.3) {
+        segmentsY.push({ xIdx, yIdx });
+      }
+    }
+  }
+
+  // Helper to check road connectivity
+  const hasRoad = (xIdx, yIdx) => {
+    const left = segmentsX.some(s => s.xIdx === xIdx - 1 && s.yIdx === yIdx);
+    const right = segmentsX.some(s => s.xIdx === xIdx && s.yIdx === yIdx);
+    const top = segmentsY.some(s => s.xIdx === xIdx && s.yIdx === yIdx - 1);
+    const bottom = segmentsY.some(s => s.xIdx === xIdx && s.yIdx === yIdx);
+    return { left, right, top, bottom, any: left || right || top || bottom };
+  };
+
   // 2. Build Walls (Block Boundaries)
   const walls = [];
-  const curbEdges = []; // For rendering curbs
+  const curbEdges = [];
   
-  // Outer boundary walls
   const minX = gridLinesX[0] - HALF_ROAD;
   const maxX = gridLinesX[gridLinesX.length - 1] + HALF_ROAD;
   const minY = gridLinesY[0] - HALF_ROAD;
   const maxY = gridLinesY[gridLinesY.length - 1] + HALF_ROAD;
 
-  walls.push({ p1: { x: minX, y: minY }, p2: { x: maxX, y: minY } }); // Top
-  walls.push({ p1: { x: maxX, y: minY }, p2: { x: maxX, y: maxY } }); // Right
-  walls.push({ p1: { x: maxX, y: maxY }, p2: { x: minX, y: maxY } }); // Bottom
-  walls.push({ p1: { x: minX, y: maxY }, p2: { x: minX, y: minY } }); // Left
+  // Outer boundary walls
+  walls.push({ p1: { x: minX, y: minY }, p2: { x: maxX, y: minY } });
+  walls.push({ p1: { x: maxX, y: minY }, p2: { x: maxX, y: maxY } });
+  walls.push({ p1: { x: maxX, y: maxY }, p2: { x: minX, y: maxY } });
+  walls.push({ p1: { x: minX, y: maxY }, p2: { x: minX, y: minY } });
 
   // Inner block walls
   for (let c = 0; c < gridLinesX.length - 1; c++) {
@@ -44,19 +76,17 @@ export const buildSprawlingCityMap = () => {
       const bMaxY = gridLinesY[r + 1] - HALF_ROAD;
 
       if (bMinX < bMaxX && bMinY < bMaxY) {
-        // Add walls for this block
         const top = { p1: { x: bMinX, y: bMinY }, p2: { x: bMaxX, y: bMinY } };
         const right = { p1: { x: bMaxX, y: bMinY }, p2: { x: bMaxX, y: bMaxY } };
         const bottom = { p1: { x: bMaxX, y: bMaxY }, p2: { x: bMinX, y: bMaxY } };
         const left = { p1: { x: bMinX, y: bMaxY }, p2: { x: bMinX, y: bMinY } };
-        
         walls.push(top, right, bottom, left);
         curbEdges.push(top, right, bottom, left);
       }
     }
   }
 
-  // Add outer boundary curbs (inset slightly)
+  // Outer boundary curbs
   curbEdges.push({ p1: { x: minX, y: minY }, p2: { x: maxX, y: minY } });
   curbEdges.push({ p1: { x: maxX, y: minY }, p2: { x: maxX, y: maxY } });
   curbEdges.push({ p1: { x: maxX, y: maxY }, p2: { x: minX, y: maxY } });
@@ -66,7 +96,6 @@ export const buildSprawlingCityMap = () => {
   const checkpoints = [];
   const checkpointsGates = [];
   
-  // Perimeter path: Top-left -> Top-right -> Bottom-right -> Bottom-left -> Top-left
   const routeCorners = [
     { x: gridLinesX[0], y: gridLinesY[0] },
     { x: gridLinesX[gridLinesX.length - 1], y: gridLinesY[0] },
@@ -83,7 +112,7 @@ export const buildSprawlingCityMap = () => {
     const dx = p2.x - p1.x;
     const dy = p2.y - p1.y;
     const dist = Math.hypot(dx, dy);
-    const steps = Math.floor(dist / 60); // Checkpoint every ~60 units
+    const steps = Math.floor(dist / 60);
     
     for (let s = 0; s < steps; s++) {
       const t = s / steps;
@@ -121,12 +150,7 @@ export const buildSprawlingCityMap = () => {
 
       // 20% chance for a garden
       if (Math.random() < 0.2) {
-        gardens.push({
-          x: cx,
-          y: cy,
-          radius: Math.min(blockWidth, blockHeight) / 2 * 0.8,
-          treeCount: 8,
-        });
+        gardens.push({ x: cx, y: cy, radius: Math.min(blockWidth, blockHeight) / 2 * 0.8, treeCount: 8 });
       } else {
         // 2x2 grid of buildings
         const pad = 10;
@@ -156,57 +180,104 @@ export const buildSprawlingCityMap = () => {
   const crosswalks = [];
 
   // Intersections
-  for (let x of gridLinesX) {
-    for (let y of gridLinesY) {
-      intersectionRects.push({ x, y, size: ROAD_WIDTH });
-      
-      // Randomize traffic lights: 30% chance of a traffic light per intersection, and only 1 light.
-      if (Math.random() > 0.7) {
-        const offset = HALF_ROAD + 8;
-        const corner = Math.floor(Math.random() * 4);
-        if (corner === 0) trafficLights.push({ x: x - offset, y: y - offset, angle: Math.PI / 4 });
-        if (corner === 1) trafficLights.push({ x: x + offset, y: y - offset, angle: Math.PI * 3 / 4 });
-        if (corner === 2) trafficLights.push({ x: x + offset, y: y + offset, angle: -Math.PI * 3 / 4 });
-        if (corner === 3) trafficLights.push({ x: x - offset, y: y + offset, angle: -Math.PI / 4 });
+  for (let xIdx = 0; xIdx < gridLinesX.length; xIdx++) {
+    for (let yIdx = 0; yIdx < gridLinesY.length; yIdx++) {
+      const x = gridLinesX[xIdx];
+      const y = gridLinesY[yIdx];
+      const conn = hasRoad(xIdx, yIdx);
+
+      if (conn.any) {
+        intersectionRects.push({ x, y, size: ROAD_WIDTH });
+        
+        // Smart Crosswalks (only where roads exist)
+        if (conn.top) crosswalks.push({ x: x, y: y - HALF_ROAD, angle: 0 }); 
+        if (conn.bottom) crosswalks.push({ x: x, y: y + HALF_ROAD, angle: 0 }); 
+        if (conn.left) crosswalks.push({ x: x - HALF_ROAD, y: y, angle: Math.PI / 2 }); 
+        if (conn.right) crosswalks.push({ x: x + HALF_ROAD, y: y, angle: Math.PI / 2 }); 
+
+        // Cap missing roads with walls
+        if (!conn.top && yIdx !== 0) walls.push({ p1: { x: x - HALF_ROAD, y: y - HALF_ROAD }, p2: { x: x + HALF_ROAD, y: y - HALF_ROAD } });
+        if (!conn.bottom && yIdx !== gridLinesY.length - 1) walls.push({ p1: { x: x + HALF_ROAD, y: y + HALF_ROAD }, p2: { x: x - HALF_ROAD, y: y + HALF_ROAD } });
+        if (!conn.left && xIdx !== 0) walls.push({ p1: { x: x - HALF_ROAD, y: y + HALF_ROAD }, p2: { x: x - HALF_ROAD, y: y - HALF_ROAD } });
+        if (!conn.right && xIdx !== gridLinesX.length - 1) walls.push({ p1: { x: x + HALF_ROAD, y: y - HALF_ROAD }, p2: { x: x + HALF_ROAD, y: y + HALF_ROAD } });
+
+        // Traffic Light
+        if (Math.random() > 0.7) {
+          const offset = HALF_ROAD + 8;
+          const corner = Math.floor(Math.random() * 4);
+          const state = Math.random() > 0.5 ? 'green' : 'red';
+          const timer = Math.random() * 10;
+          if (corner === 0) trafficLights.push({ x: x - offset, y: y - offset, angle: Math.PI / 4, state, timer });
+          if (corner === 1) trafficLights.push({ x: x + offset, y: y - offset, angle: Math.PI * 3 / 4, state, timer });
+          if (corner === 2) trafficLights.push({ x: x + offset, y: y + offset, angle: -Math.PI * 3 / 4, state, timer });
+          if (corner === 3) trafficLights.push({ x: x - offset, y: y + offset, angle: -Math.PI / 4, state, timer });
+        }
       }
-      
-      // Crosswalks
-      crosswalks.push({ x: x, y: y - HALF_ROAD, angle: 0 }); // Top
-      crosswalks.push({ x: x, y: y + HALF_ROAD, angle: 0 }); // Bottom
-      crosswalks.push({ x: x - HALF_ROAD, y: y, angle: Math.PI / 2 }); // Left
-      crosswalks.push({ x: x + HALF_ROAD, y: y, angle: Math.PI / 2 }); // Right
     }
   }
 
-  // Horizontal road segments
-  for (let y of gridLinesY) {
-    for (let i = 0; i < gridLinesX.length - 1; i++) {
-      const x1 = gridLinesX[i] + HALF_ROAD;
-      const x2 = gridLinesX[i + 1] - HALF_ROAD;
-      roadRects.push({
-        x: (x1 + x2) / 2,
-        y: y,
-        w: x2 - x1,
-        h: ROAD_WIDTH,
-        isVertical: false,
-      });
-    }
-  }
+  // Active Horizontal road segments
+  segmentsX.forEach(s => {
+    const x1 = gridLinesX[s.xIdx] + HALF_ROAD;
+    const x2 = gridLinesX[s.xIdx + 1] - HALF_ROAD;
+    const y = gridLinesY[s.yIdx];
+    roadRects.push({ x: (x1 + x2) / 2, y, w: x2 - x1, h: ROAD_WIDTH, isVertical: false });
+  });
 
-  // Vertical road segments
-  for (let x of gridLinesX) {
-    for (let i = 0; i < gridLinesY.length - 1; i++) {
-      const y1 = gridLinesY[i] + HALF_ROAD;
-      const y2 = gridLinesY[i + 1] - HALF_ROAD;
-      roadRects.push({
-        x: x,
-        y: (y1 + y2) / 2,
-        w: ROAD_WIDTH,
-        h: y2 - y1,
-        isVertical: true,
+  // Active Vertical road segments
+  segmentsY.forEach(s => {
+    const x = gridLinesX[s.xIdx];
+    const y1 = gridLinesY[s.yIdx] + HALF_ROAD;
+    const y2 = gridLinesY[s.yIdx + 1] - HALF_ROAD;
+    roadRects.push({ x, y: (y1 + y2) / 2, w: ROAD_WIDTH, h: y2 - y1, isVertical: true });
+  });
+
+  const pedestrians = [];
+  const adversarialCars = [];
+
+  // Generate Pedestrians at Crosswalks (Reduced probability and speed)
+  crosswalks.forEach(cw => {
+    if (Math.random() > 0.6) { // was 0.4
+      const isVerticalMovement = (cw.angle === Math.PI / 2); 
+      pedestrians.push({
+        x: isVerticalMovement ? cw.x : cw.x + (Math.random() - 0.5) * ROAD_WIDTH,
+        y: isVerticalMovement ? cw.y + (Math.random() - 0.5) * ROAD_WIDTH : cw.y,
+        dir: Math.random() > 0.5 ? 1 : -1,
+        speed: 0.3 + Math.random() * 0.4, // Slower speed
+        isVertical: isVerticalMovement,
+        minBound: isVerticalMovement ? cw.y - HALF_ROAD : cw.x - HALF_ROAD,
+        maxBound: isVerticalMovement ? cw.y + HALF_ROAD : cw.x + HALF_ROAD,
       });
     }
-  }
+  });
+
+  // Generate Jaywalking Pedestrians (Reduced probability and speed)
+  roadRects.forEach(r => {
+    if (Math.random() > 0.8) { // was 0.6
+      const isVerticalMovement = !r.isVertical; 
+      pedestrians.push({
+        x: r.isVertical ? r.x + (Math.random() - 0.5) * ROAD_WIDTH : r.x + (Math.random() - 0.5) * r.w,
+        y: r.isVertical ? r.y + (Math.random() - 0.5) * r.h : r.y + (Math.random() - 0.5) * ROAD_WIDTH,
+        dir: Math.random() > 0.5 ? 1 : -1,
+        speed: 0.3 + Math.random() * 0.4,
+        isVertical: isVerticalMovement,
+        minBound: isVerticalMovement ? r.y - HALF_ROAD : r.x - HALF_ROAD,
+        maxBound: isVerticalMovement ? r.y + HALF_ROAD : r.x + HALF_ROAD,
+      });
+    }
+  });
+
+  // Generate Adversarial Ghost Cars
+  roadRects.forEach(r => {
+    if (Math.random() > 0.7) { 
+       adversarialCars.push({
+         x: r.x,
+         y: r.y,
+         angle: r.isVertical ? (Math.random() > 0.5 ? Math.PI/2 : -Math.PI/2) : (Math.random() > 0.5 ? 0 : Math.PI),
+         speed: 2 + Math.random() * 3,
+       });
+    }
+  });
 
   return {
     mapSize: MAP_SIZE,
@@ -221,6 +292,8 @@ export const buildSprawlingCityMap = () => {
     roadRects,
     intersectionRects,
     trafficLights,
+    pedestrians,
+    adversarialCars,
     gridLinesX,
     gridLinesY,
     startPoint: { x: gridLinesX[0], y: gridLinesY[0] },

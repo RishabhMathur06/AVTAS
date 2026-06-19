@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Camera, Sliders, Play, Pause, RefreshCw, 
-  CloudRain, Sun, TriangleAlert, Zap
+  CloudRain, Sun, TriangleAlert, Zap, Map
 } from 'lucide-react';
 import Scene3D from '../components/Scene3D.jsx';
 import Minimap2D from '../components/Minimap2D.jsx';
@@ -22,12 +22,13 @@ export default function AdversarialSuitePage({
   aliveCount,
   hasSavedBrain
 }) {
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
 
   return (
-    <div className="animation-fade-in flex flex-col h-[calc(100vh-140px)] w-full relative border border-red-500/30 rounded-2xl overflow-hidden bg-black/40 backdrop-blur-md shadow-[0_0_40px_rgba(239,68,68,0.05)]">
+    <div className="animation-fade-in flex flex-col h-[calc(100vh-140px)] w-full relative border border-pink-500/30 rounded-2xl overflow-hidden bg-white/60 backdrop-blur-md shadow-xl shadow-pink-500/10">
       
       {/* 3D Scene Background */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 bg-slate-50">
         <Scene3D
           stateRef={stateRef}
           timeOfDay={timeOfDay}
@@ -44,12 +45,12 @@ export default function AdversarialSuitePage({
         <button
           disabled={!hasSavedBrain}
           onClick={() => setIsPlaying(!isPlaying)}
-          className={`py-2 px-4 rounded-lg font-bold flex justify-center items-center gap-2 transition-all shadow-2xl backdrop-blur-md text-xs tracking-wider ${
+          className={`py-2 px-4 rounded-lg font-bold flex justify-center items-center gap-2 transition-all shadow-xl backdrop-blur-md text-xs tracking-wider ${
             !hasSavedBrain 
-              ? 'bg-zinc-900/50 text-zinc-600 border border-zinc-800/50 cursor-not-allowed' 
+              ? 'bg-slate-100/50 text-slate-400 border border-slate-200 cursor-not-allowed' 
               : isPlaying 
-                ? 'bg-red-500/20 text-red-400 border border-red-500/50 hover:bg-red-500/30' 
-                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/30'
+                ? 'bg-pink-100 text-pink-600 border border-pink-200 hover:bg-pink-200' 
+                : 'bg-cyan-100 text-cyan-600 border border-cyan-200 hover:bg-cyan-200'
           }`}
           title={!hasSavedBrain ? "Upload a Brain first to Play" : ""}
         >
@@ -58,37 +59,37 @@ export default function AdversarialSuitePage({
         </button>
         <button
           onClick={onRegenerateCity}
-          className="py-2 px-4 bg-zinc-950/90 hover:bg-zinc-800 border border-zinc-800 rounded-lg text-zinc-300 transition-colors font-bold flex justify-center items-center gap-2 shadow-2xl backdrop-blur-md text-xs tracking-wider"
+          className="py-2 px-4 bg-white/90 hover:bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:text-slate-800 transition-colors font-bold flex justify-center items-center gap-2 shadow-xl backdrop-blur-md text-xs tracking-wider"
         >
-          <RefreshCw className="w-4 h-4" /> REMAP
+          <RefreshCw className="w-4 h-4 text-slate-400" /> REMAP
         </button>
       </div>
 
       {/* Top Right: Minimap */}
-      <div className="absolute top-4 right-4 z-10 shadow-2xl border border-zinc-800/50 rounded-xl overflow-hidden">
-        <Minimap2D stateRef={stateRef} />
+      <div className="absolute top-4 right-4 z-10 shadow-xl border border-slate-200 rounded-xl overflow-hidden">
+        <Minimap2D stateRef={stateRef} size={130} onClick={() => setIsMapModalOpen(true)} />
       </div>
 
       {/* Bottom Center: Telemetry HUD */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
-        <div className="bg-zinc-950/90 border border-zinc-800/80 rounded-2xl p-4 flex items-center gap-8 backdrop-blur-md shadow-2xl">
+        <div className="bg-white/95 border border-slate-200 rounded-2xl p-4 flex items-center gap-8 backdrop-blur-md shadow-xl">
           <div className="text-center">
-            <div className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Test Run</div>
-            <div className="text-lg font-black text-white">#{generation}</div>
+            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">Test Run</div>
+            <div className="text-lg font-black text-slate-800">#{generation}</div>
           </div>
-          <div className="w-px h-10 bg-zinc-800"></div>
+          <div className="w-px h-10 bg-slate-200"></div>
           <div className="text-center">
-            <div className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Score</div>
-            <div className="text-lg font-black text-amber-500">{bestFitness.toLocaleString()}</div>
+            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">Score</div>
+            <div className="text-lg font-black text-pink-500">{bestFitness.toLocaleString()}</div>
           </div>
-          <div className="w-px h-10 bg-zinc-800"></div>
+          <div className="w-px h-10 bg-slate-200"></div>
           <div className="text-center min-w-[80px]">
-            <div className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Steering</div>
-            <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden mt-2 relative flex items-center">
-              <div className="absolute left-1/2 w-0.5 h-full bg-zinc-700 z-10 -translate-x-1/2"></div>
+            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">Steering</div>
+            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mt-2 relative flex items-center shadow-inner">
+              <div className="absolute left-1/2 w-0.5 h-full bg-slate-300 z-10 -translate-x-1/2"></div>
               {/* Steer Bar */}
               <div 
-                className="h-full bg-amber-500 absolute"
+                className="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 absolute"
                 style={{ 
                   left: leaderTelemetry.lastOutputs[0] < 0 ? `${50 + leaderTelemetry.lastOutputs[0] * 50}%` : '50%',
                   width: `${Math.abs(leaderTelemetry.lastOutputs[0]) * 50}%`,
@@ -100,6 +101,28 @@ export default function AdversarialSuitePage({
         </div>
       </div>
       
+      {/* Map Modal */}
+      {isMapModalOpen && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animation-fade-in cursor-pointer"
+          onClick={() => setIsMapModalOpen(false)}
+        >
+          <div className="bg-white border border-slate-200 p-4 rounded-[2rem] shadow-[0_20px_50px_rgba(6,182,212,0.15)] relative overflow-hidden group" onClick={e => e.stopPropagation()}>
+            <button 
+              className="absolute top-6 right-6 text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 p-2 rounded-xl transition-colors z-10 hover:scale-110 shadow-sm"
+              onClick={() => setIsMapModalOpen(false)}
+            >
+              ✕
+            </button>
+            <h2 className="absolute top-6 left-6 text-xl font-black text-slate-800 z-10 uppercase tracking-widest drop-shadow-sm flex items-center gap-2">
+              <Map className="w-5 h-5 text-pink-500" /> City Map
+            </h2>
+            <div className="rounded-3xl overflow-hidden border border-slate-200 mt-14 shadow-inner">
+              <Minimap2D stateRef={stateRef} size={600} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

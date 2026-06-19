@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-export default function Minimap2D({ stateRef }) {
+export default function Minimap2D({ stateRef, size = 130, onClick }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -16,24 +16,36 @@ export default function Minimap2D({ stateRef }) {
         return;
       }
 
-      const mmSize = 130;
-      const scale = mmSize / 2400; // Map size is 2400
+      const scale = size / 2400; // Map size is 2400
 
       // Clear
-      ctx.clearRect(0, 0, mmSize, mmSize);
+      ctx.clearRect(0, 0, size, size);
 
       // Background (Dark semitransparent)
       ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
       ctx.strokeStyle = '#334155';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.roundRect(0, 0, mmSize, mmSize, 8);
+      ctx.roundRect(0, 0, size, size, 8);
       ctx.fill();
       ctx.stroke();
 
-      // Draw road checkpoints line
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.lineWidth = 4;
+      // Draw Roads
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      if (state.track.roadRects) {
+        state.track.roadRects.forEach(r => {
+           ctx.fillRect((r.x - r.w/2) * scale, (r.y - r.h/2) * scale, r.w * scale, r.h * scale);
+        });
+      }
+      if (state.track.intersectionRects) {
+        state.track.intersectionRects.forEach(r => {
+           ctx.fillRect((r.x - r.size/2) * scale, (r.y - r.size/2) * scale, r.size * scale, r.size * scale);
+        });
+      }
+
+      // Draw active checkpoints (optional, maybe keep it light)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       state.track.checkpoints.forEach((wp, idx) => {
         const mx = wp.x * scale;
@@ -51,11 +63,12 @@ export default function Minimap2D({ stateRef }) {
       const leader = sortedActive[0] || cars[0];
 
       // Draw car dots
+      const dotSize = size > 300 ? 5 : 2.5;
       cars.forEach((car) => {
         if (!car.alive) return;
         ctx.fillStyle = car === leader ? '#fbbf24' : '#0ea5e9';
         ctx.beginPath();
-        ctx.arc(car.x * scale, car.y * scale, 2.5, 0, Math.PI * 2);
+        ctx.arc(car.x * scale, car.y * scale, dotSize, 0, Math.PI * 2);
         ctx.fill();
       });
 
@@ -64,15 +77,16 @@ export default function Minimap2D({ stateRef }) {
 
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
-  }, [stateRef]);
+  }, [stateRef, size]);
 
   return (
     <canvas
       ref={canvasRef}
-      width={130}
-      height={130}
-      className="border border-zinc-800 rounded-lg shadow-2xl backdrop-blur-md"
-      style={{ width: '130px', height: '130px', display: 'block' }}
+      width={size}
+      height={size}
+      onClick={onClick}
+      className={`border border-zinc-800 rounded-lg shadow-2xl backdrop-blur-md ${onClick ? 'cursor-pointer hover:border-zinc-600 transition-colors' : ''}`}
+      style={{ width: `${size}px`, height: `${size}px`, display: 'block' }}
     />
   );
 }

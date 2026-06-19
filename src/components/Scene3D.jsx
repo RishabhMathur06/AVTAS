@@ -97,10 +97,14 @@ function Crosswalks({ track }) {
   return (
     <group>
       {track.crosswalks.map((cw, i) => (
-        <mesh key={`cw-${i}`} position={[cw.x, 0.015, cw.y]} rotation={[0, cw.angle, 0]} receiveShadow>
-          <boxGeometry args={[track.roadWidth - 4, 0.02, 10]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.8} />
-        </mesh>
+        <group key={`cw-${i}`} position={[cw.x, 0.015, cw.y]} rotation={[0, cw.angle, 0]}>
+          {Array.from({ length: 11 }).map((_, j) => (
+             <mesh key={j} position={[(j - 5) * 8, 0, 0]} receiveShadow>
+               <boxGeometry args={[4, 0.02, 12]} />
+               <meshStandardMaterial color="#ffffff" roughness={0.8} />
+             </mesh>
+          ))}
+        </group>
       ))}
     </group>
   );
@@ -169,15 +173,87 @@ function TrafficLights3D({ track }) {
   if (!track || !track.trafficLights) return null;
   return (
     <group>
-      {track.trafficLights.map((tl, i) => (
-        <group key={`tl-${i}`} position={[tl.x, 0, tl.y]}>
-          <mesh position={[0, 8, 0]} castShadow>
-            <cylinderGeometry args={[0.5, 0.5, 16, 8]} />
-            <meshStandardMaterial color="#4b5563" roughness={0.6} />
+      {track.trafficLights.map((tl, i) => {
+        const isGreen = tl.state === 'green';
+        const isYellow = tl.state === 'yellow';
+        const isRed = tl.state === 'red';
+        return (
+          <group key={`tl-${i}`} position={[tl.x, 0, tl.y]}>
+            <mesh position={[0, 8, 0]} castShadow>
+              <cylinderGeometry args={[0.5, 0.5, 16, 8]} />
+              <meshStandardMaterial color="#4b5563" roughness={0.6} />
+            </mesh>
+            <group position={[0, 16, 0]} rotation={[0, tl.angle, 0]}>
+              <mesh castShadow>
+                <boxGeometry args={[3, 9, 3]} />
+                <meshStandardMaterial color="#111827" roughness={0.8} />
+              </mesh>
+              {/* Red Light */}
+              <mesh position={[0, 2.5, 1.51]}>
+                <circleGeometry args={[1, 16]} />
+                <meshBasicMaterial color={isRed ? "#ef4444" : "#450a0a"} />
+              </mesh>
+              {/* Yellow Light */}
+              <mesh position={[0, 0, 1.51]}>
+                <circleGeometry args={[1, 16]} />
+                <meshBasicMaterial color={isYellow ? "#eab308" : "#422006"} />
+              </mesh>
+              {/* Green Light */}
+              <mesh position={[0, -2.5, 1.51]}>
+                <circleGeometry args={[1, 16]} />
+                <meshBasicMaterial color={isGreen ? "#22c55e" : "#052e16"} />
+              </mesh>
+            </group>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pedestrians Component
+// ─────────────────────────────────────────────────────────────────────────────
+function Pedestrians3D({ track }) {
+  if (!track || !track.pedestrians) return null;
+  return (
+    <group>
+      {track.pedestrians.map((ped, i) => (
+        <group key={`ped-${i}`} position={[ped.x, 0, ped.y]}>
+          <mesh position={[0, 3, 0]} castShadow>
+            <cylinderGeometry args={[1.5, 1.5, 6, 8]} />
+            <meshStandardMaterial color="#f97316" roughness={0.7} />
           </mesh>
-          <mesh position={[0, 16, 0]} rotation={[0, tl.angle, 0]} castShadow>
-            <boxGeometry args={[3, 8, 3]} />
-            <meshStandardMaterial color="#1f2937" roughness={0.8} />
+          <mesh position={[0, 7, 0]} castShadow>
+            <sphereGeometry args={[1.2, 8, 8]} />
+            <meshStandardMaterial color="#fcd34d" roughness={0.6} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Adversarial Ghost Cars Component
+// ─────────────────────────────────────────────────────────────────────────────
+function AdversarialCars3D({ track }) {
+  if (!track || !track.adversarialCars) return null;
+  return (
+    <group>
+      {track.adversarialCars.map((car, i) => (
+        <group key={`ghost-${i}`} position={[car.x, 2.0, car.y]} rotation={[0, -car.angle, 0]}>
+          <mesh castShadow>
+            <boxGeometry args={[24, 4, 11]} />
+            <meshStandardMaterial color="#1a1a1a" roughness={0.5} metalness={0.8} />
+          </mesh>
+          <mesh position={[12.1, 0, 3.5]}>
+             <boxGeometry args={[0.5, 1, 2]} />
+             <meshBasicMaterial color="#ef4444" />
+          </mesh>
+          <mesh position={[12.1, 0, -3.5]}>
+             <boxGeometry args={[0.5, 1, 2]} />
+             <meshBasicMaterial color="#ef4444" />
           </mesh>
         </group>
       ))}
@@ -214,7 +290,7 @@ function CityBuildings({ buildings, timeOfDay }) {
 
   return (
     <group>
-      <instancedMesh ref={meshRef} args={[null, null, buildingsData.length]} castShadow receiveShadow>
+      <instancedMesh key={buildingsData.length} ref={meshRef} args={[null, null, buildingsData.length]} castShadow receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
         <meshStandardMaterial
           color={timeOfDay === 'day' ? '#94a3b8' : timeOfDay === 'sunset' ? '#451a03' : '#09090b'}
@@ -387,6 +463,9 @@ function CarsController({ stateRef, timeOfDay, cameraMode, zoom }) {
   const lookTargetRef = useRef(new THREE.Vector3());
   const isFirstFrame = useRef(true);
 
+  const colorRed = useMemo(() => new THREE.Color(0xef4444), []);
+  const colorGreen = useMemo(() => new THREE.Color(0x22c55e), []);
+
   useFrame((state) => {
     const cars = stateRef.current.cars;
     if (!cars || cars.length === 0) return;
@@ -422,7 +501,7 @@ function CarsController({ stateRef, timeOfDay, cameraMode, zoom }) {
       followerRef.current.instanceMatrix.needsUpdate = true;
     }
 
-    if (lidarRef.current && leader && leader.alive && leader.sensorRays) {
+    if (lidarRef.current && leader && leader.sensorRays) {
       const lineGeoms = lidarRef.current.children;
       leader.sensorRays.forEach((ray, idx) => {
         if (idx < lineGeoms.length) {
@@ -431,16 +510,15 @@ function CarsController({ stateRef, timeOfDay, cameraMode, zoom }) {
           const array = posAttr.array;
 
           array[0] = ray.p1.x;
-          array[1] = 0.5;
+          array[1] = 2.5;
           array[2] = ray.p1.y;
           array[3] = ray.p2.x;
-          array[4] = 0.5;
+          array[4] = 2.5;
           array[5] = ray.p2.y;
 
           posAttr.needsUpdate = true;
-          const d = ray.p2.offset || 1.0;
-          const isNear = d < 0.28;
-          line.material.color.setHex(isNear ? 0xef4444 : 0x22c55e);
+          const d = ray.p2.offset !== undefined ? ray.p2.offset : 1.0;
+          line.material.color.lerpColors(colorRed, colorGreen, d);
         }
       });
     }
@@ -682,6 +760,8 @@ export default function Scene3D({ stateRef, timeOfDay, hasRain, zoom, cameraMode
             <RoadMarkings track={track} />
             <Crosswalks track={track} />
             <TrafficLights3D track={track} />
+            <Pedestrians3D track={track} />
+            <AdversarialCars3D track={track} />
             <StreetLights track={track} timeOfDay={timeOfDay} />
           </group>
         )}

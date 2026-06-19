@@ -163,6 +163,29 @@ export const updateCarPhysics = (car, isAI, controls, track, cones) => {
     }
   });
 
+  // Pedestrian Collision
+  if (track.pedestrians) {
+    track.pedestrians.forEach((ped) => {
+      const dist = Math.hypot(car.x - ped.x, car.y - ped.y);
+      if (dist < CAR_RADIUS + 3) {
+        car.alive = false;
+        car.fitness -= 500; // Massive penalty for hitting pedestrians
+      }
+    });
+  }
+
+  // Adversarial Car Collision
+  if (track.adversarialCars) {
+    track.adversarialCars.forEach((ghost) => {
+      // Treat ghost cars as rectangular or approximate with a larger radius
+      const dist = Math.hypot(car.x - ghost.x, car.y - ghost.y);
+      if (dist < CAR_RADIUS + 10) {
+        car.alive = false;
+        car.fitness -= 200; // Penalty for crashing into ghost cars
+      }
+    });
+  }
+
   // Anti-stuck (speed-based): kills cars that have stopped moving
   if (car.speed < 0.1) {
     car.collisionTimeout += 1;
@@ -174,4 +197,64 @@ export const updateCarPhysics = (car, isAI, controls, track, cones) => {
   // Anti-spinner (progress-based): kills cars circling without checkpoints
   // 300 frames ≈ 5 seconds at 60fps — enough time to reach the next gate
   if (car.noProgressTimer > 300) car.alive = false;
+};
+
+/**
+ * Perform one environment step (traffic lights, pedestrians, ghost cars).
+ *
+ * @param {object} state - mutable simulation state
+ */
+export const updateEnvironment = (state) => {
+  if (!state.track) return;
+
+  // Traffic Lights State Machine
+  if (state.track.trafficLights) {
+    state.track.trafficLights.forEach((light) => {
+      light.timer -= 0.016; 
+      if (light.timer <= 0) {
+        if (light.state === 'green') {
+          light.state = 'yellow';
+          light.timer = 3.0; // 3 seconds yellow
+        } else if (light.state === 'yellow') {
+          light.state = 'red';
+          light.timer = 10.0; // 10 seconds red
+        } else {
+          light.state = 'green';
+          light.timer = 10.0; // 10 seconds green
+        }
+      }
+    });
+  }
+
+  // Pedestrian Logic
+  if (state.track.pedestrians) {
+    state.track.pedestrians.forEach((ped) => {
+      if (ped.isVertical) {
+        ped.y += ped.dir * ped.speed;
+        if (ped.dir === 1 && ped.y > ped.maxBound) ped.dir = -1;
+        if (ped.dir === -1 && ped.y < ped.minBound) ped.dir = 1;
+      } else {
+        ped.x += ped.dir * ped.speed;
+        if (ped.dir === 1 && ped.x > ped.maxBound) ped.dir = -1;
+        if (ped.dir === -1 && ped.x < ped.minBound) ped.dir = 1;
+      }
+    });
+  }
+
+  // Adversarial Ghost Car Logic
+  if (state.track.adversarialCars) {
+    const mapSize = state.track.mapSize || 2400;
+    state.track.adversarialCars.forEach((car) => {
+      car.x += Math.cos(car.angle) * car.speed;
+      car.y += Math.sin(car.angle) * car.speed;
+      
+      // Respawn if off-map
+      if (car.x < 10 || car.x > mapSize - 10 || car.y < 10 || car.y > mapSize - 10) {
+        const road = state.track.roadRects[Math.floor(Math.random() * state.track.roadRects.length)];
+        car.x = road.x;
+        car.y = road.y;
+        car.angle = road.isVertical ? (Math.random() > 0.5 ? Math.PI/2 : -Math.PI/2) : (Math.random() > 0.5 ? 0 : Math.PI);
+      }
+    });
+  }
 };
