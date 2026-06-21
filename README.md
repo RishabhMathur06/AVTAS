@@ -5,13 +5,26 @@
 ## 🚀 Core Features
 
 ### 1. Vehicle Training Suite
-Train an autonomous AI "brain" from scratch. The system uses a Feed-forward Neural Network combined with a Genetic Algorithm (NEAT). Vehicles learn to navigate a procedurally generated city grid using simulated physical LIDAR rays. 
+Train an autonomous AI "brain" from scratch. The system uses a Feed-forward Neural Network combined with a Genetic Algorithm (NEAT). Vehicles learn to navigate a procedurally generated city grid using simulated physical LiDAR rays, evolving to dodge moving obstacles and navigate intersections.
 
-### 2. Adversarial Test Suite *(In Development)*
-Upload a pre-trained "Perfect Brain" and test its robustness. The simulation actively tries to force accidents by spawning dynamic edge cases such as:
+### 2. Intelligent Traffic NPC System
+A fully dynamic traffic simulation runs alongside the training process:
+- **Intelligent Pathfinding:** Traffic NPCs navigate the city map, automatically determining valid turns at intersections.
+- **Traffic Light Compliance:** Invisible traffic lights cycle at intersections; NPCs will correctly brake and wait for green lights.
+- **Collision Avoidance:** Traffic NPCs detect other cars in front of them (including your AI Champion) and actively hit the brakes to avoid rear-ending or head-on collisions.
+- **Real 3D Models:** Traffic is rendered using full 3D car models painted in randomized vibrant colors (Yellow, Green, Purple).
+
+### 3. Adversarial Test Suite
+Upload a pre-trained "Perfect Brain" and test its robustness in the **Adversarial Test Dashboard**. The simulation actively tests your AI's reaction to dynamic edge cases such as:
 - Erratic pedestrians crossing intersections.
 - Changing traffic lights.
-- "Ghost Cars" that intentionally violate traffic laws.
+- Deadlocked traffic jams and oncoming vehicles.
+
+### 4. Live Telemetry Dashboard
+A beautiful mission control dashboard tracks real-time training data, including:
+- Current Generation and Survivor Count
+- Best Fitness Score
+- **Live Speed Tracking** (in realistic km/h based on simulation physics)
 
 ## 🛠️ Technology Stack
 *   **Frontend:** React.js, TailwindCSS
@@ -21,7 +34,12 @@ Upload a pre-trained "Perfect Brain" and test its robustness. The simulation act
 
 ## 🏎️ Getting Started
 
-First, ensure you have Node.js installed on your machine.
+> [!IMPORTANT]  
+> **Node.js Version Requirement:** This project requires **Node v22** or higher. 
+> Ensure you have the correct version active before installing dependencies. If you are using NVM, run:
+> ```bash
+> nvm use 22
+> ```
 
 1. Clone the repository and navigate into the directory:
    ```bash
@@ -29,8 +47,9 @@ First, ensure you have Node.js installed on your machine.
    cd AVTAS
    ```
 
-2. Install the dependencies:
+2. Set the correct Node version and install the dependencies:
    ```bash
+   nvm use 22
    npm install
    ```
 
