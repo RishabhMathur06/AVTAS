@@ -242,19 +242,71 @@ function AdversarialCars3D({ track }) {
   return (
     <group>
       {track.adversarialCars.map((car, i) => (
-        <group key={`ghost-${i}`} position={[car.x, 2.0, car.y]} rotation={[0, -car.angle, 0]}>
-          <mesh castShadow>
-            <boxGeometry args={[24, 4, 11]} />
-            <meshStandardMaterial color="#1a1a1a" roughness={0.5} metalness={0.8} />
+        <group key={`ghost-${i}`} position={[car.x, 0, car.y]} rotation={[0, -car.angle, 0]}>
+          {/* Main Body */}
+          <mesh castShadow receiveShadow position={[0, 2.0, 0]}>
+            <boxGeometry args={[24, 3, 11]} />
+            <meshStandardMaterial color={car.color || '#eab308'} roughness={0.3} metalness={0.6} />
           </mesh>
-          <mesh position={[12.1, 0, 3.5]}>
-             <boxGeometry args={[0.5, 1, 2]} />
-             <meshBasicMaterial color="#ef4444" />
+          
+          {/* Cabin */}
+          <mesh position={[-2, 4.0, 0]}>
+            <boxGeometry args={[10, 2.5, 9]} />
+            <meshStandardMaterial color="#0f172a" roughness={0.1} metalness={0.9} />
           </mesh>
-          <mesh position={[12.1, 0, -3.5]}>
-             <boxGeometry args={[0.5, 1, 2]} />
-             <meshBasicMaterial color="#ef4444" />
+          
+          {/* Spoiler */}
+          <mesh position={[-11, 4.0, 0]}>
+            <boxGeometry args={[2, 0.5, 10]} />
+            <meshStandardMaterial color="#111111" />
           </mesh>
+          <mesh position={[-11, 3.0, -3]}>
+            <boxGeometry args={[1, 2, 0.5]} />
+            <meshStandardMaterial color="#111111" />
+          </mesh>
+          <mesh position={[-11, 3.0, 3]}>
+            <boxGeometry args={[1, 2, 0.5]} />
+            <meshStandardMaterial color="#111111" />
+          </mesh>
+
+          {/* Headlights */}
+          <mesh position={[12, 2.2, 3.5]}>
+            <boxGeometry args={[0.5, 1, 2]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+          <mesh position={[12, 2.2, -3.5]}>
+            <boxGeometry args={[0.5, 1, 2]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+          
+          {/* Taillights */}
+          <mesh position={[-12, 2.2, 4]}>
+            <boxGeometry args={[0.5, 1, 2.2]} />
+            <meshBasicMaterial color="#ef4444" />
+          </mesh>
+          <mesh position={[-12, 2.2, -4]}>
+            <boxGeometry args={[0.5, 1, 2.2]} />
+            <meshBasicMaterial color="#ef4444" />
+          </mesh>
+
+          {/* Wheels */}
+          {[
+            [7, 1.5, 6.2],
+            [7, 1.5, -6.2],
+            [-7, 1.5, 6.2],
+            [-7, 1.5, -6.2]
+          ].map((pos, wIdx) => (
+            <group key={wIdx} position={pos} rotation={[Math.PI / 2, 0, 0]}>
+              <mesh castShadow>
+                <cylinderGeometry args={[2.5, 2.5, 2.5, 16]} />
+                <meshStandardMaterial color="#111111" roughness={0.9} />
+              </mesh>
+              <mesh position={[0, pos[2] > 0 ? 1.26 : -1.26, 0]}>
+                <cylinderGeometry args={[1.5, 1.5, 0.1, 6]} />
+                <meshStandardMaterial color="#cbd5e1" metalness={0.8} roughness={0.2} />
+              </mesh>
+            </group>
+          ))}
         </group>
       ))}
     </group>
@@ -482,6 +534,8 @@ function CarsController({ stateRef, timeOfDay, cameraMode, zoom }) {
       });
     }
 
+
+
     if (followerRef.current) {
       let followerIdx = 0;
       cars.forEach((car) => {
@@ -510,10 +564,10 @@ function CarsController({ stateRef, timeOfDay, cameraMode, zoom }) {
           const array = posAttr.array;
 
           array[0] = ray.p1.x;
-          array[1] = 2.5;
+          array[1] = 5.5;
           array[2] = ray.p1.y;
           array[3] = ray.p2.x;
-          array[4] = 2.5;
+          array[4] = 5.5;
           array[5] = ray.p2.y;
 
           posAttr.needsUpdate = true;
@@ -637,6 +691,8 @@ function CarsController({ stateRef, timeOfDay, cameraMode, zoom }) {
         ))}
       </group>
 
+
+
       <instancedMesh ref={followerRef} args={[null, null, 100]} castShadow>
         <boxGeometry args={[24, 3, 11]} />
         <meshStandardMaterial color="#0ea5e9" transparent opacity={0.15} depthWrite={false} roughness={0.3} metalness={0.5} />
@@ -644,7 +700,7 @@ function CarsController({ stateRef, timeOfDay, cameraMode, zoom }) {
 
       <group ref={lidarRef}>
         {Array.from({ length: 5 }).map((_, idx) => (
-          <line key={idx}>
+          <line key={idx} frustumCulled={false}>
             <bufferGeometry>
               <bufferAttribute attach="attributes-position" args={[new Float32Array(6), 3]} />
             </bufferGeometry>
