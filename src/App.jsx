@@ -168,7 +168,22 @@ export default function App() {
   // Genetic evolution cycle (called when all cars are dead)
   // ─────────────────────────────────────────────────────────────────────────
   const handleEvolutionCycle = () => {
-    const { cars, historyData } = stateRef.current;
+    const { cars, historyData, track } = stateRef.current;
+
+    // Clear traffic from the start line so newly spawned agents don't immediately crash and cause a rapid spawn loop
+    if (track && track.adversarialCars) {
+      const sp = track.startPoint;
+      track.adversarialCars.forEach(car => {
+        if (Math.hypot(car.x - sp.x, car.y - sp.y) < 300) {
+          const road = track.roadRects[Math.floor(Math.random() * track.roadRects.length)];
+          car.x = road.x;
+          car.y = road.y;
+          car.angle = road.isVertical ? (Math.random() > 0.5 ? Math.PI/2 : -Math.PI/2) : (Math.random() > 0.5 ? 0 : Math.PI);
+          car.hasTurnedAtThisIntersection = false;
+        }
+      });
+    }
+
     cars.sort((a, b) => b.fitness - a.fitness);
 
     const genBest = cars[0].fitness;
@@ -607,11 +622,22 @@ export default function App() {
                     <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Best Score</div>
                     <div className="text-sm font-extrabold text-pink-500 mt-0.5">{bestFitness.toLocaleString()}</div>
                   </div>
+                  <div className="border-l border-slate-200 pl-6">
+                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Speed</div>
+                    <div className="text-sm font-extrabold text-slate-800 mt-0.5">{Math.round((leaderTelemetry.speed || 0) * 20)} km/h</div>
+                  </div>
                 </div>
               ) : (
-                <h2 className="text-sm font-semibold text-slate-600 bg-white border border-slate-200 shadow-sm rounded-xl px-4 py-3">
-                  Adversarial Test Dashboard
-                </h2>
+                <div className="bg-white border border-slate-200 shadow-sm rounded-xl p-3 font-mono text-[12px] text-slate-600 flex items-center gap-6">
+                  <div>
+                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Mode</div>
+                    <div className="text-sm font-extrabold text-slate-800 mt-0.5">Adversarial Test</div>
+                  </div>
+                  <div className="border-l border-slate-200 pl-6">
+                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Speed</div>
+                    <div className="text-sm font-extrabold text-slate-800 mt-0.5">{Math.round((leaderTelemetry.speed || 0) * 20)} km/h</div>
+                  </div>
+                </div>
               )}
             </div>
 
