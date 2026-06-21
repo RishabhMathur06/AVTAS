@@ -187,7 +187,13 @@ export const buildSprawlingCityMap = () => {
       const conn = hasRoad(xIdx, yIdx);
 
       if (conn.any) {
-        intersectionRects.push({ x, y, size: ROAD_WIDTH });
+        intersectionRects.push({ 
+          x, y, 
+          size: ROAD_WIDTH, 
+          conn,
+          lightStateX: Math.random() > 0.5 ? 'green' : 'red',
+          timer: Math.random() * 10
+        });
         
         // Smart Crosswalks (only where roads exist)
         if (conn.top) crosswalks.push({ x: x, y: y - HALF_ROAD, angle: 0 }); 
@@ -267,16 +273,26 @@ export const buildSprawlingCityMap = () => {
     }
   });
 
-  // Generate Adversarial Ghost Cars
-  roadRects.forEach(r => {
-    if (Math.random() > 0.7) { 
-       adversarialCars.push({
-         x: r.x,
-         y: r.y,
-         angle: r.isVertical ? (Math.random() > 0.5 ? Math.PI/2 : -Math.PI/2) : (Math.random() > 0.5 ? 0 : Math.PI),
-         speed: 2 + Math.random() * 3,
-       });
-    }
+  // Generate Traffic NPCs (Adversarial Cars)
+  const trafficColors = ['#eab308', '#22c55e', '#a855f7']; // Yellow, Green, Purple
+  
+  // Pick 10 random roads
+  const shuffledRoads = [...roadRects].sort(() => 0.5 - Math.random()).slice(0, 10);
+  
+  shuffledRoads.forEach(r => {
+    const isVertical = r.isVertical;
+    const angle = isVertical ? (Math.random() > 0.5 ? Math.PI/2 : -Math.PI/2) : (Math.random() > 0.5 ? 0 : Math.PI);
+    adversarialCars.push({
+      x: r.x,
+      y: r.y,
+      angle: angle,
+      speed: 1.5 + Math.random() * 1.5, // 1.5 to 3.0 speed
+      color: trafficColors[Math.floor(Math.random() * trafficColors.length)],
+      isVertical: isVertical,
+      dir: (angle === 0 || angle === Math.PI/2) ? 1 : -1,
+      state: 'driving', // driving, waiting
+      waitTimer: 0
+    });
   });
 
   return {

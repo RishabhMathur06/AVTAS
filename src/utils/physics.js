@@ -84,6 +84,25 @@ export const updateCarPhysics = (car, isAI, controls, track, cones) => {
       }
     });
 
+    // Traffic NPCs (Adversarial Cars) intersections
+    if (track.adversarialCars) {
+      track.adversarialCars.forEach((npc) => {
+        const npcDist = Math.hypot(car.x - npc.x, car.y - npc.y);
+        if (npcDist < RAY_LENGTH) {
+          const dx  = npc.x - car.x;
+          const dy  = npc.y - car.y;
+          // Wider dot threshold for cars since they are bigger than cones
+          const dot = (dx * Math.cos(rayAngle) + dy * Math.sin(rayAngle)) / npcDist;
+          if (dot > 0.95) {
+            const offset = npcDist / RAY_LENGTH;
+            if (!closest || offset < closest.offset) {
+              closest = { x: npc.x, y: npc.y, offset };
+            }
+          }
+        }
+      });
+    }
+
     if (closest) {
       car.sensors.push(closest.offset);
       car.sensorRays.push({ p1: { x: car.x, y: car.y }, p2: closest });
@@ -189,7 +208,8 @@ export const updateCarPhysics = (car, isAI, controls, track, cones) => {
   // Anti-stuck (speed-based): kills cars that have stopped moving
   if (car.speed < 0.1) {
     car.collisionTimeout += 1;
-    if (car.collisionTimeout > 180) car.alive = false;
+    // Increased timeout to allow cars to stop at traffic lights or behind traffic without instantly dying
+    if (car.collisionTimeout > 400) car.alive = false;
   } else {
     car.collisionTimeout = 0;
   }
@@ -241,12 +261,93 @@ export const updateEnvironment = (state) => {
     });
   }
 
-  // Adversarial Ghost Car Logic
+  if (state.track.intersectionRects) {
+    state.track.intersectionRects.forEach(rect => {
+      if (rect.timer !== undefined) {
+        rect.timer -= 0.016;
+        if (rect.timer <= 0) {
+          rect.lightStateX = rect.lightStateX === 'green' ? 'red' : 'green';
+          rect.timer = 6.0; // 6 seconds per phase
+        }
+      }
+    });
+  }
+
+  // Traffic NPCs (Adversarial Cars) Logic
   if (state.track.adversarialCars) {
     const mapSize = state.track.mapSize || 2400;
     state.track.adversarialCars.forEach((car) => {
-      car.x += Math.cos(car.angle) * car.speed;
-      car.y += Math.sin(car.angle) * car.speed;
+      if (car.waitTimer > 0) {
+        car.waitTimer -= 0.016;
+        return;
+      }
+      
+      let canMove = true;
+
+      // 1. Intersection and Traffic Light logic
+      if (state.track.intersectionRects) {
+        const atIntersection = state.track.intersectionRects.find(
+          rect => Math.hypot(car.x - rect.x, car.y - rect.y) < 25
+        );
+
+        if (atIntersection) {
+          const isMovingX = Math.abs(Math.cos(car.angle)) > 0.5;
+          const greenLight = isMovingX ? atIntersection.lightStateX === 'green' : atIntersection.lightStateX === 'red';
+          
+          if (!greenLight) {
+            canMove = false; // Stop at red light
+          } else if (!car.hasTurnedAtThisIntersection) {
+             const conn = atIntersection.conn;
+             const possibleDirs = [];
+             // Only turn to valid roads, avoid U-turns if possible
+             if (conn.left && Math.abs(car.angle - 0) > 0.1) possibleDirs.push(Math.PI);
+             if (conn.right && Math.abs(car.angle - Math.PI) > 0.1) possibleDirs.push(0);
+             if (conn.top && Math.abs(car.angle - Math.PI/2) > 0.1) possibleDirs.push(-Math.PI/2);
+             if (conn.bottom && Math.abs(car.angle - (-Math.PI/2)) > 0.1) possibleDirs.push(Math.PI/2);
+
+             if (possibleDirs.length > 0) {
+               // 30% chance to turn, 70% chance to go straight if straight is valid
+               const isStraightValid = possibleDirs.some(d => Math.abs(d - car.angle) < 0.1 || Math.abs(d - car.angle) > Math.PI*1.9);
+               if (!isStraightValid || Math.random() < 0.3) {
+                 car.angle = possibleDirs[Math.floor(Math.random() * possibleDirs.length)];
+                 car.x = atIntersection.x;
+                 car.y = atIntersection.y;
+               }
+             }
+             car.hasTurnedAtThisIntersection = true;
+          }
+        } else {
+          car.hasTurnedAtThisIntersection = false;
+        }
+      }
+
+      // 2. Traffic collision avoidance
+      if (canMove) {
+        for (let other of state.track.adversarialCars) {
+          if (other === car) continue;
+          
+          const angleDiff = Math.abs(car.angle - other.angle);
+          const isOpposite = Math.abs(angleDiff - Math.PI) < 0.1 || Math.abs(angleDiff - Math.PI*3) < 0.1;
+          if (isOpposite) continue; // Ignore oncoming traffic cars so they pass each other
+
+          const dist = Math.hypot(car.x - other.x, car.y - other.y);
+          if (dist < 40) {
+            const dx = other.x - car.x;
+            const dy = other.y - car.y;
+            const dot = (dx * Math.cos(car.angle) + dy * Math.sin(car.angle)) / dist;
+            if (dot > 0.8) {
+              canMove = false; // Traffic Car in front
+              break;
+            }
+          }
+        }
+      }
+
+      // 3. Move
+      if (canMove) {
+        car.x += Math.cos(car.angle) * car.speed;
+        car.y += Math.sin(car.angle) * car.speed;
+      }
       
       // Respawn if off-map
       if (car.x < 10 || car.x > mapSize - 10 || car.y < 10 || car.y > mapSize - 10) {
@@ -254,6 +355,7 @@ export const updateEnvironment = (state) => {
         car.x = road.x;
         car.y = road.y;
         car.angle = road.isVertical ? (Math.random() > 0.5 ? Math.PI/2 : -Math.PI/2) : (Math.random() > 0.5 ? 0 : Math.PI);
+        car.hasTurnedAtThisIntersection = false;
       }
     });
   }
