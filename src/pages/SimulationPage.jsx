@@ -243,21 +243,21 @@ export default function SimulationPage({
           style={{ width: `${100 - leftWidth}%` }} 
           className="p-4 flex flex-col gap-6 bg-slate-50 overflow-y-auto"
         >
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 relative z-30">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-2">Synaptic Map</h3>
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex-none min-h-[220px]">
               <NeuralTopology leaderTelemetry={leaderTelemetry} />
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 relative z-20">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-2">Failure Arc</h3>
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex-none min-h-[220px]">
               <AnalyticsPage history={history} />
             </div>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 relative z-10">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest pl-2">Brain Store</h3>
             <div className="bg-white border border-slate-200 rounded-xl shadow-sm flex-none min-h-[220px]">
               <BrainMemoryPage

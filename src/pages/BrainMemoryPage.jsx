@@ -41,9 +41,11 @@ export default function BrainMemoryPage({
     <div className="animation-fade-in space-y-6 max-w-4xl mx-auto">
       
       {/* Header card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 relative overflow-hidden shadow-sm">
-        <div className="absolute right-0 top-0 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl pointer-events-none" />
-        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 relative shadow-sm">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+          <div className="absolute right-0 top-0 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 relative z-10">
           <Database className="w-5 h-5 text-pink-500" /> Neural Brain Memory Store
           <Tooltip text="Export and import your agent's neural network as a .json file. You can share this file, back it up, or reload it any time to resume evolution from where you left off." />
         </h2>
