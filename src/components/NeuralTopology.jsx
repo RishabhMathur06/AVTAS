@@ -59,9 +59,11 @@ export default function NeuralTopology({ leaderTelemetry }) {
   });
 
   return (
-    <div className="animation-fade-in bg-zinc-950 border border-zinc-900 rounded-xl p-4 shadow-xl relative overflow-hidden">
-      <div className="absolute right-0 top-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute left-0 bottom-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+    <div className="animation-fade-in bg-zinc-950 border border-zinc-900 rounded-xl p-4 shadow-xl relative">
+      <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+        <div className="absolute right-0 top-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl" />
+        <div className="absolute left-0 bottom-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl" />
+      </div>
 
       <div className="flex justify-between items-center mb-3">
         <div>
