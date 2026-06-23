@@ -26,6 +26,7 @@ dist-ssr
 # Env
 .env
 .env.*
+venv
 
 # Project specific ignores
 project_docs/
