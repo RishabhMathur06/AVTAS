@@ -27,36 +27,44 @@ A beautiful mission control dashboard tracks real-time training data, including:
 - **Live Speed Tracking** (in realistic km/h based on simulation physics)
 
 ## 🛠️ Technology Stack
-*   **Frontend:** React.js, TailwindCSS
+*   **Frontend:** React.js, TailwindCSS, Vite
 *   **3D Engine:** React Three Fiber (`@react-three/fiber`, `@react-three/drei`)
-*   **AI Engine:** Custom from-scratch Vanilla JS (Feedforward NNs, Genetic Algorithms)
-*   **Physics:** Custom Rigid-body kinematics and 2D/3D Raycasting
+*   **Physics Engine:** Custom Rigid-body kinematics and 2D/3D Raycasting (JavaScript)
+*   **AI Backend Engine:** Python, FastAPI, WebSockets, Numpy
+*   **AI Architecture:** Decoupled OpenAI Gym-style pattern. The frontend handles physics/observations and streams them via WebSockets to the Python backend. The backend runs the Genetic Algorithm (NEAT) and Feedforward Neural Network inferences, streaming steering commands back to the frontend at 60fps.
 
 ## 🏎️ Getting Started
 
 > [!IMPORTANT]  
-> **Node.js Version Requirement:** This project requires **Node v22** or higher. 
-> Ensure you have the correct version active before installing dependencies. If you are using NVM, run:
-> ```bash
-> nvm use 22
-> ```
+> **Node.js Version Requirement:** The frontend requires **Node v22** or higher. 
+> Ensure you have the correct version active before installing dependencies.
 
-1. Clone the repository and navigate into the directory:
-   ```bash
-   git clone https://github.com/<your-username>/AVTAS.git
-   cd AVTAS
-   ```
+### 1. Start the AI Backend (Python)
 
-2. Set the correct Node version and install the dependencies:
-   ```bash
-   nvm use 22
-   npm install
-   ```
+Open a terminal, navigate to the `backend` folder, set up your Python environment, and start the FastAPI WebSocket server:
 
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
+```bash
+cd AVTAS/backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python server.py
+```
+*The AI Engine will run on `http://127.0.0.1:8000` with interactive API docs available at `/docs`.*
+
+### 2. Start the Simulation Frontend (React/Vite)
+
+Open a **new** terminal, navigate to the root directory, and start the Vite dev server:
+
+```bash
+cd AVTAS
+nvm use 22
+npm install
+npm run dev
+```
+
+### 3. Connect
+Open your browser to `http://localhost:5173`. Select a workspace, and the simulation will automatically establish a WebSocket connection with the Python engine to begin training!
 
 ## 📝 License
 This project is licensed under the MIT License.
