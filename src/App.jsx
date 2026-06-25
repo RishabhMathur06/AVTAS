@@ -21,11 +21,14 @@ import LandingPage      from './pages/LandingPage.jsx';
 import SimulationPage   from './pages/SimulationPage.jsx';
 import AdversarialSuitePage from './pages/AdversarialSuitePage.jsx';
 
-import { buildSprawlingCityMap, buildObstacles } from './utils/cityMap.js';
-import { spawnCar, updateCarPhysics, updateEnvironment } from './utils/physics.js';
-import { cloneNetwork, crossoverNetworks,
-         mutateNetwork }                          from './utils/neural.js';
+import Scene3D from './components/Scene3D';
+import { buildSprawlingCityMap, buildObstacles } from './utils/cityMap';
+import { spawnCar, updateCarPhysics, updateEnvironment } from './utils/physics';
+import { aiClient } from './utils/socketClient';
 
+// Dummy stubs to prevent crashes since neural.js is deleted
+const cloneNetwork = (n) => n;
+const mutateNetwork = (n) => n;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Default leader telemetry (prevents null access on first render)
@@ -127,6 +130,22 @@ export default function App() {
   // ─────────────────────────────────────────────────────────────────────────
   // Full city reset
   // ─────────────────────────────────────────────────────────────────────────
+  // Keep config in ref to avoid recreating the websocket loop on every state change
+  useEffect(() => {
+    stateRef.current.simMode = simMode;
+    stateRef.current.isPlaying = isPlaying;
+    stateRef.current.simSpeed = simSpeed;
+    stateRef.current.populationSize = populationSize;
+    stateRef.current.friction = friction;
+    stateRef.current.mutationRate = mutationRate;
+    stateRef.current.selectionRatio = selectionRatio;
+  }, [simMode, isPlaying, simSpeed, populationSize, friction, mutationRate, selectionRatio]);
+
+  // Handle mode switches gracefully via WebSocket
+  useEffect(() => {
+    aiClient.send('SET_MODE', { mode: simMode });
+  }, [simMode]);
+
   const handleRegenerateCity = () => {
     const track = buildSprawlingCityMap();
     stateRef.current.track = track;
@@ -165,133 +184,147 @@ export default function App() {
   }, [hasRain]);
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Genetic evolution cycle (called when all cars are dead)
-  // ─────────────────────────────────────────────────────────────────────────
-  const handleEvolutionCycle = () => {
-    const { cars, historyData, track } = stateRef.current;
-
-    // Clear traffic from the start line so newly spawned agents don't immediately crash and cause a rapid spawn loop
-    if (track && track.adversarialCars) {
-      const sp = track.startPoint;
-      track.adversarialCars.forEach(car => {
-        if (Math.hypot(car.x - sp.x, car.y - sp.y) < 300) {
-          const road = track.roadRects[Math.floor(Math.random() * track.roadRects.length)];
-          car.x = road.x;
-          car.y = road.y;
-          car.angle = road.isVertical ? (Math.random() > 0.5 ? Math.PI/2 : -Math.PI/2) : (Math.random() > 0.5 ? 0 : Math.PI);
-          car.hasTurnedAtThisIntersection = false;
-        }
-      });
-    }
-
-    cars.sort((a, b) => b.fitness - a.fitness);
-
-    const genBest = cars[0].fitness;
-    const genAvg  = cars.reduce((s, c) => s + c.fitness, 0) / cars.length;
-
-    if (genBest > stateRef.current.bestEverFitness) {
-      stateRef.current.bestEverFitness = genBest;
-      stateRef.current.bestEverNetwork = cloneNetwork(cars[0].brain);
-    }
-
-    setBestFitness(Math.round(stateRef.current.bestEverFitness));
-
-    const nextHist = [
-      ...historyData,
-      {
-        generation:     stateRef.current.generationCount,
-        topFitness:     Math.round(genBest),
-        averageFitness: Math.round(genAvg),
-      },
-    ].slice(-30);
-    stateRef.current.historyData = nextHist;
-    setHistory(nextHist);
-
-    // Bypass evolution in adversarial mode
-    if (simMode === 'adversarial') {
-      const bestNet = stateRef.current.bestEverNetwork || stateRef.current.cars[0]?.brain;
-      const nextBrains = Array(populationSize).fill(null).map(() => cloneNetwork(bestNet));
-      stateRef.current.cars = nextBrains.map(b =>
-        spawnCar(stateRef.current.track, stateRef.current.cars[0]?.friction ?? friction, b)
-      );
-      stateRef.current.generationCount += 1;
-      setGeneration(stateRef.current.generationCount);
-      return;
-    }
-
-    // Select elites & breed next generation
-    const eliteCount   = Math.max(2, Math.floor(cars.length * selectionRatio));
-    const eliteParents = cars.slice(0, eliteCount).map(c => c.brain);
-
-    const nextBrains = [cloneNetwork(eliteParents[0])];
-    while (nextBrains.length < populationSize) {
-      const pa    = eliteParents[Math.floor(Math.random() * eliteParents.length)];
-      const pb    = eliteParents[Math.floor(Math.random() * eliteParents.length)];
-      let child   = crossoverNetworks(pa, pb);
-      child       = mutateNetwork(child, mutationRate, mutationPower);
-      nextBrains.push(child);
-    }
-
-    stateRef.current.cars = nextBrains.map(b =>
-      spawnCar(stateRef.current.track, stateRef.current.cars[0]?.friction ?? friction, b)
-    );
-    stateRef.current.generationCount += 1;
-    setGeneration(stateRef.current.generationCount);
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Main animation loop
+  // WebSocket AI Engine & Animation Loop
   // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const loop = () => {
-      const state = stateRef.current;
-      if (!state.track) {
-        requestRef.current = requestAnimationFrame(loop);
+    let wsActive = true;
+
+    const sendObservations = () => {
+      const s = stateRef.current;
+      if (!wsActive || !s.track) return;
+      
+      if (!s.isPlaying) {
+        setTimeout(sendObservations, 100);
+        return;
+      }
+      
+      const data = [];
+      s.cars.forEach((c, idx) => {
+         if (c.alive) data.push({ id: idx, inputs: c.currentInputs || [0,0,0,0,0,0] });
+      });
+      aiClient.send('OBSERVATION', { data });
+    };
+
+    aiClient.on('INIT_ACK', (msg) => {
+      setGeneration(msg.generation);
+      sendObservations();
+    });
+
+    aiClient.on('START_GENERATION', (msg) => {
+      if (!wsActive) return;
+      const s = stateRef.current;
+      s.generationCount = msg.generation;
+      if (msg.bestFitness && msg.bestFitness > s.bestEverFitness) {
+         s.bestEverFitness = msg.bestFitness;
+         setBestFitness(Math.round(msg.bestFitness));
+      }
+      if (msg.championNetwork) {
+         s.bestEverNetwork = msg.championNetwork;
+      }
+      setGeneration(msg.generation);
+      
+      const { track } = s;
+      // Respawn cars (no brain passed, outputs will come from WS)
+      s.cars = Array(s.populationSize).fill(null).map(() => 
+        spawnCar(track, s.friction)
+      );
+      // Clear traffic from the start line
+      if (track && track.adversarialCars) {
+        const sp = track.startPoint;
+        track.adversarialCars.forEach(car => {
+          if (Math.hypot(car.x - sp.x, car.y - sp.y) < 300) {
+            const road = track.roadRects[Math.floor(Math.random() * track.roadRects.length)];
+            car.x = road.x;
+            car.y = road.y;
+            car.angle = road.isVertical ? (Math.random() > 0.5 ? Math.PI/2 : -Math.PI/2) : (Math.random() > 0.5 ? 0 : Math.PI);
+            car.hasTurnedAtThisIntersection = false;
+          }
+        });
+      }
+      
+      // Update history chart occasionally
+      if (msg.generation > 1) {
+        const nextHist = [...s.historyData, {
+          generation: msg.generation - 1,
+          topFitness: Math.round(s.bestEverFitness),
+          averageFitness: Math.round(s.bestEverFitness / 2), // approximation for now
+        }].slice(-30);
+        s.historyData = nextHist;
+        setHistory(nextHist);
+      }
+      
+      sendObservations();
+    });
+
+    aiClient.on('ACTION', (msg) => {
+      if (!wsActive) return;
+      const s = stateRef.current;
+      
+      if (!s.isPlaying) {
+        setTimeout(sendObservations, 100);
         return;
       }
 
-      if (isPlaying) {
-        for (let s = 0; s < simSpeed; s++) {
-          updateEnvironment(state);
+      const actions = msg.data;
+      actions.forEach(a => {
+         if (s.cars[a.id]) {
+           s.cars[a.id].outputs = [a.steer, a.throttle];
+         }
+      });
 
-          let allDead = true;
-
-          state.cars.forEach((car) => {
-            if (car.alive) {
-              updateCarPhysics(car, true, null, state.track, state.obstacles);
-              allDead = false;
-            }
-          });
-
-          if (allDead) {
-            handleEvolutionCycle();
-            break;
+      let allDead = false;
+      for (let step = 0; step < s.simSpeed; step++) {
+        updateEnvironment(s);
+        allDead = true;
+        s.cars.forEach((car) => {
+          if (car.alive) {
+            updateCarPhysics(car, true, null, s.track, s.obstacles);
+            allDead = false;
           }
-        }
-      }
-
-      // Identify leader (best alive car)
-      const alive  = state.cars.filter(c => c.alive).sort((a, b) => b.fitness - a.fitness);
-      const leader = alive[0] || state.cars[0];
-
-      if (leader) {
-        setAliveCount(alive.length);
-        setLeaderTelemetry({
-          speed:             leader.speed,
-          gForce:            Math.abs(leader.speed * 0.15),
-          sensors:           leader.sensors,
-          lastOutputs:       leader.lastOutputs || [0, 0],
-          hiddenActivations: leader.hiddenActivations || [0, 0, 0, 0, 0, 0],
-          network:           leader.brain,
         });
+        if (allDead) break;
       }
 
-      requestRef.current = requestAnimationFrame(loop);
-    };
+      if (allDead) {
+        const fitnessData = s.cars.map((c, i) => ({ id: i, fitness: c.fitness }));
+        aiClient.send('END_GENERATION', { 
+          data: fitnessData, 
+          mutationRate: s.mutationRate, 
+          selectionRatio: s.selectionRatio 
+        });
+      } else {
+        const alive = s.cars.filter(c => c.alive).sort((a, b) => b.fitness - a.fitness);
+        const leader = alive[0] || s.cars[0];
+        if (leader) {
+          setAliveCount(alive.length);
+          setLeaderTelemetry({
+            speed: leader.speed,
+            gForce: Math.abs(leader.speed * 0.15),
+            fitness: leader.fitness,
+            checkpoints: leader.checkpointsPassed,
+            survivalTime: leader.survivalTime,
+            sensors: leader.sensors,
+            lastOutputs: leader.lastOutputs || [0, 0],
+            hiddenActivations: leader.hiddenActivations || [0, 0, 0, 0, 0, 0],
+            network: s.bestEverNetwork
+          });
+        }
+        
+        // Use requestAnimationFrame to yield to the browser's render cycle
+        requestAnimationFrame(sendObservations);
+      }
+    });
 
-    requestRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(requestRef.current);
-  }, [isPlaying, simSpeed]); // eslint-disable-line
+    // Start WS Connection
+    aiClient.connect(() => {
+      aiClient.send('INIT', { 
+        populationSize: stateRef.current.populationSize, 
+        mode: stateRef.current.simMode 
+      });
+    });
+
+    return () => { wsActive = false; };
+  }, []);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Brain save/load — FILE BASED (no localStorage)
@@ -643,7 +676,7 @@ export default function App() {
 
             {/* Middle Title */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-3">
-              <h1 className="text-3xl font-black tracking-[0.25em] bg-gradient-to-r from-cyan-600 via-pink-500 to-cyan-500 text-transparent bg-clip-text drop-shadow-md select-none">
+              <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-pink-500 tracking-tight select-none">
                 AVTAS
               </h1>
             </div>

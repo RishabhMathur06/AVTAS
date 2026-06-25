@@ -4,7 +4,8 @@
  */
 
 import { getIntersection, getDistanceToSegment } from './geometry.js';
-import { feedForward, generateRandomNetwork } from './neural.js';
+
+const generateRandomNetwork = () => null;
 
 const RAY_ANGLES = [-Math.PI / 3, -Math.PI / 6, 0, Math.PI / 6, Math.PI / 3];
 const RAY_LENGTH = 200;
@@ -117,12 +118,14 @@ export const updateCarPhysics = (car, isAI, controls, track, cones) => {
   let accelForce = 0;
 
   if (isAI) {
-    const inputs  = [...car.sensors, car.speed / car.maxSpeed];
-    const result  = feedForward(inputs, car.brain);
-    steerForce    = result.outputs[0];
-    accelForce    = result.outputs[1];
-    car.lastOutputs = result.outputs;
-    car.hiddenActivations = result.hidden;
+    // The outputs are now provided by the Python backend via WebSocket
+    if (car.outputs) {
+      steerForce    = car.outputs[0];
+      accelForce    = car.outputs[1];
+      car.lastOutputs = car.outputs;
+    }
+    // Set inputs array for the next WebSocket payload
+    car.currentInputs = [...car.sensors, car.speed / car.maxSpeed];
   } else if (controls) {
     steerForce = controls.steer;
     accelForce = controls.accel;
